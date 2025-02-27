@@ -44,10 +44,21 @@ async def generate_greeting(user_name):
     return response['choices'][0]['message']['content']
 
 async def speak(vc, text):
-    """Converts text to speech and plays it in the voice channel."""
+    """Converts text to speech, plays it in the voice channel, and deletes the output file afterward."""
+    # Generate TTS output file
     tts_engine.save_to_file(text, "tts_output.mp3")
     tts_engine.runAndWait()
-    vc.play(discord.FFmpegPCMAudio("tts_output.mp3"), after=lambda e: print("Finished speaking!"))
+    
+    # Play the audio in the voice channel
+    vc.play(discord.FFmpegPCMAudio("tts_output.mp3"), after=lambda e: cleanup("tts_output.mp3"))
+
+def cleanup(file_path):
+    """Deletes the specified file after playback."""
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        print(f"Deleted file: {file_path}")
+    else:
+        print(f"File not found: {file_path}")
 
 @bot.event
 async def on_ready():
@@ -65,7 +76,8 @@ async def on_voice_state_update(member, before, after):
         elif not vc:  # If bot is not in a channel, join
             vc = await channel.connect()
 
-        greeting = await generate_greeting(member.name)  # Get GPT-4 greeting
+        # Use a static greeting for testing TTS functionality
+        greeting = f"Welcome, {member.name}! Ready to play some games?"  # Static greeting
         await speak(vc, greeting)  # Speak the greeting
 
 @bot.command()
