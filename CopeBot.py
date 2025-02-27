@@ -16,6 +16,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 intents = discord.Intents.default()
 intents.message_content = True  # Enable message content intent
 intents.voice_states = True      # Enable tracking voice channel changes
+intents.presences = True         # Enable tracking user presence and activities
 
 # Initialize the bot
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -92,25 +93,6 @@ async def on_voice_state_update(member, before, after):
             if vc and vc.channel == before.channel:  # If bot is in the same channel
                 if len(before.channel.members) == 1:  # If no other members are present
                     await vc.disconnect()
-@bot.command()
-async def join(ctx):
-    """Makes the bot join the user's voice channel."""
-    if ctx.author.voice:
-        channel = ctx.author.voice.channel
-        await channel.connect()
-        await ctx.send(f"Joined {channel.name}! 🔊")
-    else:
-        await ctx.send("You need to be in a voice channel first! 🚫")
-
-@bot.command()
-async def leave(ctx):
-    """Makes the bot leave the voice channel."""
-    vc = ctx.guild.voice_client
-    if vc:
-        await vc.disconnect()
-        await ctx.send("Left the voice channel! 👋")
-    else:
-        await ctx.send("I'm not in a voice channel! 🤷")
 
 # Run the bot
 bot.run(DISCORD_BOT_TOKEN)
