@@ -33,15 +33,23 @@ TARGET_USER_ID = 177911196266004480  # Use your own for testing
 async def generate_greeting(user_name):
     """Fetches a greeting message from GPT-4 based on the user's name."""
     prompt = f"Create a series of informal, humorous, and slightly sarcastic remarks for {user_name} when they join a voice chat. The tone should be playful yet critical, incorporating regional slang or accents."
-    
-    # Use the updated API call
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return response['choices'][0]['message']['content']
+
+    # Check if API key is set
+    if not OPENAI_API_KEY:
+        return "API key is not set. Please configure it."
+
+    try:
+        # Updated API call
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-4",
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response['choices'][0]['message']['content']
+    except Exception as e:
+        return f"Error generating greeting: {str(e)}"
+
 
 async def speak(vc, text):
     """Converts text to speech, plays it in the voice channel, and deletes the output file afterward."""
@@ -67,19 +75,23 @@ async def on_ready():
 @bot.event
 async def on_voice_state_update(member, before, after):
     """Automatically joins a target user's channel and greets them with TTS."""
-    if member.id == TARGET_USER_ID and after.channel is not None:  # If the user joins a channel
-        channel = after.channel
+    if member.id == TARGET_USER_ID:
         vc = discord.utils.get(bot.voice_clients, guild=member.guild)
 
-        if vc and vc.channel != channel:  # If bot is in a different channel, move it
-            await vc.move_to(channel)
-        elif not vc:  # If bot is not in a channel, join
-            vc = await channel.connect()
+        if after.channel:  # If the user joined a channel
+            if vc:
+                if vc.channel != after.channel:  # Move to the new channel
+                    await vc.move_to(after.channel)
+            else:  # If the bot is not connected, join the new channel
+                vc = await after.channel.connect()
 
-        # Use a static greeting for testing TTS functionality
-        greeting = f"Welcome, {member.name}! Ready to play some games?"  # Static greeting
-        await speak(vc, greeting)  # Speak the greeting
-
+            # Generate a greeting for the user
+            greeting = await generate_greeting(member.name)  
+            await speak(vc, greeting)  # Speak the greeting
+        else:  # If the user leaves the channel
+            if vc and vc.channel == before.channel:  # If bot is in the same channel
+                if len(before.channel.members) == 1:  # If no other members are present
+                    await vc.disconnect()
 @bot.command()
 async def join(ctx):
     """Makes the bot join the user's voice channel."""
