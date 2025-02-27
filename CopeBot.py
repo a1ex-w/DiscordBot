@@ -5,15 +5,6 @@ import pyttsx3
 from discord.ext import commands
 from dotenv import load_dotenv
 
-# Set up intents
-intents = discord.Intents.default()
-intents.message_content = True  # Ensure this is enabled
-intents.voice_states = True
-
-# Initialize the bot
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-
 # Load environment variables
 load_dotenv()
 
@@ -21,9 +12,12 @@ load_dotenv()
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Set up bot with command prefix "!"
+# Set up intents
 intents = discord.Intents.default()
-intents.voice_states = True  # Enable tracking voice channel changes
+intents.message_content = True  # Enable message content intent
+intents.voice_states = True      # Enable tracking voice channel changes
+
+# Initialize the bot
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Initialize OpenAI API
@@ -34,16 +28,20 @@ tts_engine = pyttsx3.init()
 tts_engine.setProperty("rate", 150)  # Adjust speech speed
 
 # Replace with your friend's Discord user ID
-TARGET_USER_ID = 177911196266004480  # Replace with actual user ID Luke's is '178342278958546944' Using mine instead to test for now.
+TARGET_USER_ID = 177911196266004480  # Use your own for testing
 
 async def generate_greeting(user_name):
     """Fetches a greeting message from GPT-4 based on the user's name."""
-    prompt = f"Create a series of informal, humorous, and slightly sarcastic remarks for {user_name} when they join a voice chat that someone might say upon encountering an unexpected or unwelcome visitor in a casual setting. The tone should be playful yet critical, incorporating regional slang or accents to add character. For example, phrases like 'What in the world are you doing here?' or 'Who invited this character?' should capture a sense of surprise and mild annoyance."
+    prompt = f"Create a series of informal, humorous, and slightly sarcastic remarks for {user_name} when they join a voice chat. The tone should be playful yet critical, incorporating regional slang or accents."
+    
+    # Use the updated API call
     response = openai.ChatCompletion.create(
         model="gpt-4",
-        messages=[{"role": "system", "content": prompt}]
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
     )
-    return response["choices"][0]["message"]["content"]
+    return response['choices'][0]['message']['content']
 
 async def speak(vc, text):
     """Converts text to speech and plays it in the voice channel."""
@@ -61,12 +59,12 @@ async def on_voice_state_update(member, before, after):
     if member.id == TARGET_USER_ID and after.channel is not None:  # If the user joins a channel
         channel = after.channel
         vc = discord.utils.get(bot.voice_clients, guild=member.guild)
-        
+
         if vc and vc.channel != channel:  # If bot is in a different channel, move it
             await vc.move_to(channel)
         elif not vc:  # If bot is not in a channel, join
             vc = await channel.connect()
-        
+
         greeting = await generate_greeting(member.name)  # Get GPT-4 greeting
         await speak(vc, greeting)  # Speak the greeting
 
