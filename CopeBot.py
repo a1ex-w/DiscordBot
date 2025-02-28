@@ -4,6 +4,7 @@ import pyttsx3
 import requests
 import asyncio
 import random
+import datetime
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -26,8 +27,8 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")
 
 # Your friend's Riot account details (Replace with their actual summoner name and tag)
-SUMMONER_NAME = "Cackman"
-SUMMONER_TAG = "NA1"
+SUMMONER_NAME = "PostNutClarity"
+SUMMONER_TAG = "HELP"
 
 # Riot API URLs
 PUUID_URL = "https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{}/{}"
@@ -90,31 +91,43 @@ async def fetch_puuid():
         return None
 
 async def check_for_new_match():
-    """Checks if a new match has started and announces it in voice chat."""
+    """Checks if a new match has started and announces it in voice chat, with debug logging."""
     global last_match_id
     puuid = await fetch_puuid()
     
     if not puuid:
+        print("[DEBUG] Failed to retrieve PUUID.")
         return
     
     url = MATCH_HISTORY_URL.format(puuid)
     headers = {"X-Riot-Token": RIOT_API_KEY}
+    
+    print(f"[{datetime.datetime.now()}] [DEBUG] Fetching match history for {SUMMONER_NAME} (PUUID: {puuid})...")
+    
     response = requests.get(url, headers=headers)
 
     if response.status_code == 200:
         matches = response.json()
+        
         if matches:
-            latest_match = matches[0]
+            latest_match = matches[0]  # Latest match ID
+            
+            print(f"[{datetime.datetime.now()}] [DEBUG] Latest match ID: {latest_match}")
+            
             if latest_match != last_match_id:
+                print(f"[{datetime.datetime.now()}] [DEBUG] New match detected! Previous: {last_match_id}, New: {latest_match}")
                 last_match_id = latest_match
                 
                 # Check if bot is in a voice channel
                 vc = discord.utils.get(bot.voice_clients, guild=bot.guilds[0])  # Assuming one guild
                 if vc and vc.is_connected():
                     sarcastic_message = random.choice(SARCASTIC_MESSAGES).format(name=SUMMONER_NAME)
+                    print(f"[{datetime.datetime.now()}] [DEBUG] Sending TTS message: {sarcastic_message}")
                     await speak(vc, sarcastic_message)  # Use the existing TTS function
+            else:
+                print(f"[{datetime.datetime.now()}] [DEBUG] No new match detected. Last match remains: {last_match_id}")
     else:
-        print(f"Failed to fetch match history: {response.json()}")
+        print(f"[DEBUG] Failed to fetch match history: {response.status_code} - {response.text}")
 
 async def monitor_matches():
     """Runs the match checker every 60 seconds."""
@@ -156,5 +169,12 @@ async def test_match(ctx):
     last_match_id = None  # Reset last match to force a new detection
     await check_for_new_match()
     await ctx.send("Test match triggered!")
+@bot.command(name="testdebug")
+async def test_debug(ctx):
+    """Manually trigger a match check with debug logging."""
+    global last_match_id
+    last_match_id = None  # Reset last match to force a new detection
+    await check_for_new_match()
+    await ctx.send("Debug test triggered! Check console for logs.")
 # Run the bot
 bot.run(DISCORD_BOT_TOKEN)
