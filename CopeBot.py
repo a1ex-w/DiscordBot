@@ -1,6 +1,8 @@
 import discord
 import os
 import pyttsx3
+import requests
+import asyncio
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -9,6 +11,17 @@ load_dotenv()
 
 # Get API keys from .env
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+
+# Riot API Key (store this in your .env file)
+RIOT_API_KEY = os.getenv("RIOT_API_KEY")
+
+# Your friend's Riot account details (Replace with their actual summoner name and tag)
+SUMMONER_NAME = "Cackman"
+SUMMONER_TAG = "NA1"
+
+# Riot API URLs
+PUUID_URL = "https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{}/{}"
+MATCH_HISTORY_URL = "https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/{}/ids?start=0&count=1"
 
 # Set up intents
 intents = discord.Intents.default()
@@ -50,6 +63,61 @@ def cleanup(file_path):
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user.name}!')
+
+# Global variable to track last seen League of Legends match 
+last_match_id = None
+
+async def fetch_puuid():
+    """Fetches PUUID using summoner name and tag."""
+    url = PUUID_URL.format(SUMMONER_NAME, SUMMONER_TAG)
+    headers = {"X-Riot-Token": RIOT_API_KEY}
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        return response.json()["puuid"]
+    else:
+        print(f"Failed to fetch PUUID: {response.json()}")
+        return None
+
+async def check_for_new_match():
+    """Checks if a new match has started and announces it in voice chat."""
+    global last_match_id
+    puuid = await fetch_puuid()
+    
+    if not puuid:
+        return
+    
+    url = MATCH_HISTORY_URL.format(puuid)
+    headers = {"X-Riot-Token": RIOT_API_KEY}
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        matches = response.json()
+        if matches:
+            latest_match = matches[0]
+            if latest_match != last_match_id:
+                last_match_id = latest_match
+                
+                # Check if bot is in a voice channel
+                vc = discord.utils.get(bot.voice_clients, guild=bot.guilds[0])  # Assuming one guild
+                if vc and vc.is_connected():
+                    sarcastic_message = f"Oh boy, {SUMMONER_NAME} is in another match. This should be *interesting*... 🙃"
+                    await speak(vc, sarcastic_message)  # Use the existing TTS function
+    else:
+        print(f"Failed to fetch match history: {response.json()}")
+
+async def monitor_matches():
+    """Runs the match checker every 60 seconds."""
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        await check_for_new_match()
+        await asyncio.sleep(60)  # Check every 60 seconds
+
+# Start monitoring when the bot is ready
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user.name}!')
+    bot.loop.create_task(monitor_matches())
 
 @bot.event
 async def on_voice_state_update(member, before, after):
