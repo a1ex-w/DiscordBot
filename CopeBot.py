@@ -3,11 +3,21 @@ import os
 import pyttsx3
 import requests
 import asyncio
+import random
 from discord.ext import commands
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# List of sarcastic comments
+SARCASTIC_MESSAGES = [
+    "Oh boy, {name} is in another match. This should be *interesting*... 🙃",
+    "And here we go again! Can't wait to hear the excuses, {name}!",
+    "Ah yes, another match. Surely this time, it's *not* the team's fault, right {name}? 😏",
+    "Breaking news: {name} has entered the Rift! Time for the classic *'my team is trolling'* speech!",
+    "Everyone stay back, {name} is about to put on a masterclass... or at least, that's what they'll say later. 🤡",
+]
 
 # Get API keys from .env
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -101,7 +111,7 @@ async def check_for_new_match():
                 # Check if bot is in a voice channel
                 vc = discord.utils.get(bot.voice_clients, guild=bot.guilds[0])  # Assuming one guild
                 if vc and vc.is_connected():
-                    sarcastic_message = f"Oh boy, {SUMMONER_NAME} is in another match. This should be *interesting*... 🙃"
+                    sarcastic_message = random.choice(SARCASTIC_MESSAGES).format(name=SUMMONER_NAME)
                     await speak(vc, sarcastic_message)  # Use the existing TTS function
     else:
         print(f"Failed to fetch match history: {response.json()}")
@@ -139,6 +149,12 @@ async def on_voice_state_update(member, before, after):
             if vc and vc.channel == before.channel:  # If bot is in the same channel
                 if len(before.channel.members) == 1:  # If no other members are present
                     await vc.disconnect()
-
+@bot.command(name="testmatch")
+async def test_match(ctx):
+    """Manually trigger a fake match detection for testing."""
+    global last_match_id
+    last_match_id = None  # Reset last match to force a new detection
+    await check_for_new_match()
+    await ctx.send("Test match triggered!")
 # Run the bot
 bot.run(DISCORD_BOT_TOKEN)
